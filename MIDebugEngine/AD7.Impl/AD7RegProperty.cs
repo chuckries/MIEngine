@@ -12,12 +12,12 @@ namespace Microsoft.MIDebugEngine
     public class AD7RegGroupProperty : IDebugProperty2
     {
         private readonly RegisterGroup _group;
-        private readonly Tuple<int, string>[] _values;
+        private readonly IEnumerable<Register> _registers;
         public readonly DEBUG_PROPERTY_INFO PropertyInfo;
-        public AD7RegGroupProperty(enum_DEBUGPROP_INFO_FLAGS dwFields, RegisterGroup grp, Tuple<int, string>[] values)
+        public AD7RegGroupProperty(enum_DEBUGPROP_INFO_FLAGS dwFields, RegisterGroup group, IEnumerable<Register> registers)
         {
-            _group = grp;
-            _values = values;
+            _group = group;
+            _registers = registers;
             PropertyInfo = CreateInfo(dwFields);
         }
 
@@ -52,29 +52,25 @@ namespace Microsoft.MIDebugEngine
         {
             DEBUG_PROPERTY_INFO[] properties = new DEBUG_PROPERTY_INFO[_group.Count];
             int i = 0;
-            foreach (var reg in DebuggedProcess.g_Process.GetRegisterDescriptions())
-            {
-                if (reg.Group == _group)
+            foreach (var register in _registers)
+            { 
+                properties[i].dwFields = 0;
+                if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_NAME) != 0)
                 {
-                    properties[i].dwFields = 0;
-                    if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_NAME) != 0)
-                    {
-                        properties[i].bstrName = reg.Name;
-                        properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_NAME;
-                    }
-                    if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_VALUE) != 0)
-                    {
-                        var desc = Array.Find(_values, (v) => { return v.Item1 == reg.Index; });
-                        properties[i].bstrValue = desc == null ? "??" : desc.Item2;
-                        properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_VALUE;
-                    }
-                    if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_ATTRIB) != 0)
-                    {
-                        properties[i].dwAttrib = enum_DBG_ATTRIB_FLAGS.DBG_ATTRIB_VALUE_READONLY;
-                        properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_ATTRIB;
-                    }
-                    i++;
+                    properties[i].bstrName = register.Description.Name;
+                    properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_NAME;
                 }
+                if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_VALUE) != 0)
+                {
+                    properties[i].bstrValue = register.Content ?? "??";
+                    properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_VALUE;
+                }
+                if ((dwFields & enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_ATTRIB) != 0)
+                {
+                    properties[i].dwAttrib = enum_DBG_ATTRIB_FLAGS.DBG_ATTRIB_VALUE_READONLY;
+                    properties[i].dwFields |= enum_DEBUGPROP_INFO_FLAGS.DEBUGPROP_INFO_ATTRIB;
+                }
+                i++;
             }
             Debug.Assert(i == _group.Count, "Failed to find registers in group.");
             ppEnum = new AD7PropertyEnum(properties);

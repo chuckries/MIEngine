@@ -86,30 +86,4 @@ namespace Microsoft.MIDebugEngine
         public const int E_ABORT = unchecked((int)(0x80004004));
         public const int RPC_E_SERVERFAULT = unchecked((int)(0x80010105));
     };
-
-    public class RegisterGroup
-    {
-        public readonly string Name;
-        internal int Count { get; set; }
-
-        public RegisterGroup(string name)
-        {
-            Name = name;
-            Count = 0;
-        }
-    }
-
-    public class RegisterDescription
-    {
-        public readonly string Name;
-        public RegisterGroup Group { get; private set; }
-        public readonly int Index;
-        public RegisterDescription(string name, RegisterGroup group, int i)
-        {
-            Name = name;
-            Group = group;
-            Index = i;
-            Group.Count++;
-        }
-    };
 }

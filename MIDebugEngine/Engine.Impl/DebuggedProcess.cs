@@ -41,8 +41,7 @@ namespace Microsoft.MIDebugEngine
         private uint _loadOrder;
         private WaitDialog _waitDialog;
         public readonly Natvis.Natvis Natvis;
-        private ReadOnlyCollection<RegisterDescription> _registers;
-        private ReadOnlyCollection<RegisterGroup> _registerGroups;
+        public readonly RegisterCollection RegisterCollection;
 
         public DebuggedProcess(bool bLaunched, LaunchOptions launchOptions, ISampleEngineCallback callback, WorkerThread worker, BreakpointManager bpman, AD7Engine engine)
         {
@@ -59,7 +58,8 @@ namespace Microsoft.MIDebugEngine
             MICommandFactory = MICommandFactory.GetInstance(launchOptions.DebuggerMIMode, this);
             _waitDialog = MICommandFactory.SupportsStopOnDynamicLibLoad() ? new WaitDialog(ResourceStrings.LoadingSymbolMessage, ResourceStrings.LoadingSymbolCaption) : null;
             Natvis = new Natvis.Natvis(this);
-
+            RegisterCollection = new RegisterCollection(this);
+            
             // we do NOT have real Win32 process IDs, so we use a guid
             AD_PROCESS_ID pid = new AD_PROCESS_ID();
             pid.ProcessIdType = (int)enum_AD_PROCESS_ID.AD_PROCESS_ID_GUID;
@@ -977,86 +977,6 @@ namespace Microsoft.MIDebugEngine
                 bytes[pos] = Convert.ToByte(strByte, 16);
             }
             return toRead;
-        }
-
-        private static RegisterGroup GetGroupForRegister(List<RegisterGroup> registerGroups, string name, EngineUtils.RegisterNameMap nameMap)
-        {
-            string grpName = nameMap.GetGroupName(name);
-            RegisterGroup grp = registerGroups.FirstOrDefault((g) => { return g.Name == grpName; });
-            if (grp == null)
-            {
-                grp = new RegisterGroup(grpName);
-                registerGroups.Add(grp);
-            }
-            return grp;
-        }
-
-        private void InitializeRegisters()
-        {
-            WorkerThread.RunOperation(async () =>
-            {
-                if (_registers != null)
-                    return; // already initialized
-
-                string[] names = await MICommandFactory.DataListRegisterNames();
-
-                if (_registers != null)
-                    return; // already initialized
-
-                EngineUtils.RegisterNameMap nameMap = EngineUtils.RegisterNameMap.Create(names);
-                List<RegisterDescription> desc = new List<RegisterDescription>();
-                var registerGroups = new List<RegisterGroup>();
-                for (int i = 0; i < names.Length; ++i)
-                {
-                    if (String.IsNullOrEmpty(names[i]))
-                    {
-                        continue;  // ignore the empty names
-                    }
-                    RegisterGroup grp = GetGroupForRegister(registerGroups, names[i], nameMap);
-                    desc.Add(new RegisterDescription(names[i], grp, i));
-                }
-                _registerGroups = registerGroups.AsReadOnly();
-                _registers = desc.AsReadOnly();
-            });
-        }
-
-        public ReadOnlyCollection<RegisterDescription> GetRegisterDescriptions()
-        {
-            // If this is called on the Worker thread it may deadlock
-            Debug.Assert(!_worker.IsPollThread());
-
-            if (_registers == null)
-            {
-                InitializeRegisters();
-            }
-
-            return _registers;
-        }
-
-        public ReadOnlyCollection<RegisterGroup> GetRegisterGroups()
-        {
-            // If this is called on the Worker thread it may deadlock
-            Debug.Assert(!_worker.IsPollThread());
-
-            if (_registerGroups == null)
-            {
-                InitializeRegisters();
-            }
-
-            return _registerGroups;
-        }
-
-        public async Task<Tuple<int, string>[]> GetRegisters(int threadId, uint level)
-        {
-            TupleValue[] values = await MICommandFactory.DataListRegisterValues(threadId);
-            Tuple<int, string>[] regValues = new Tuple<int, string>[values.Length];
-            for (int i = 0; i < values.Length; ++i)
-            {
-                int index = values[i].FindInt("number");
-                string regContent = values[i].FindString("value");
-                regValues[i] = new Tuple<int, string>(index, regContent);
-            }
-            return regValues;
         }
 
         public async Task DisableBreakpointsForFuncEvalAsync()

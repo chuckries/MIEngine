@@ -225,11 +225,22 @@ namespace MICore
             return results.Find<ValueListValue>("register-names").AsStrings;
         }
 
-        public async Task<TupleValue[]> DataListRegisterValues(int threadId)
+        public async Task<string[]> DataListRegisterValues(int threadId)
         {
             string command = "-data-list-register-values x";
             Results results = await ThreadCmdAsync(command, ResultClass.done, threadId);
-            return results.Find<ValueListValue>("register-values").AsArray<TupleValue>();
+            var values = results.Find<ValueListValue>("register-values").AsArray<TupleValue>();
+
+            string[] registers = new string[values.Length];
+
+            Array.ForEach(values, (value) =>
+            {
+                uint index = value.FindUint("number");
+                string content = value.FindString("value");
+                registers[index] = content;
+            });
+
+            return registers;
         }
 
         public async Task<string> DataEvaluateExpression(string expr, int threadId, uint frame)

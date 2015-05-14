@@ -339,22 +339,19 @@ namespace Microsoft.MIDebugEngine
 
         private void CreateRegisterContent(enum_DEBUGPROP_INFO_FLAGS dwFields, out uint elementsReturned, out IEnumDebugPropertyInfo2 enumObject)
         {
-            IReadOnlyCollection<RegisterGroup> registerGroups = Engine.DebuggedProcess.GetRegisterGroups();
+            Dictionary<RegisterGroup, List<Register>> registers = Engine.DebuggedProcess.RegisterCollection.GetRegisters(Thread.GetDebuggedThread().Id, ThreadContext.Level);
 
-            elementsReturned = (uint)registerGroups.Count;
+            elementsReturned = (uint)registers.Keys.Count;
             DEBUG_PROPERTY_INFO[] propInfo = new DEBUG_PROPERTY_INFO[elementsReturned];
-            Tuple<int, string>[] values = null;
-            Engine.DebuggedProcess.WorkerThread.RunOperation(async () =>
-            {
-                values = await Engine.DebuggedProcess.GetRegisters(Thread.GetDebuggedThread().Id, ThreadContext.Level);
-            });
+
             int i = 0;
-            foreach (var grp in registerGroups)
+            foreach (var pair in registers)
             {
-                AD7RegGroupProperty regProp = new AD7RegGroupProperty(dwFields, grp, values);
+                var regProp = new AD7RegGroupProperty(dwFields, pair.Key, pair.Value);
                 propInfo[i] = regProp.PropertyInfo;
                 i++;
             }
+
             enumObject = new AD7PropertyInfoEnum(propInfo);
         }
 

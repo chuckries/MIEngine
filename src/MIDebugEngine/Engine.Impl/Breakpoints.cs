@@ -192,9 +192,16 @@ namespace Microsoft.MIDebugEngine
             Debug.Assert(bkpt.FindString("type") == "breakpoint");
 
             string number = bkpt.FindString("number");
+            string warning = bkpt.TryFindString("warning");
             string addr = bkpt.TryFindString("addr");
 
-            PendingBreakpoint bp = new PendingBreakpoint(pbreak, number, StringToBreakpointState(addr));
+            PendingBreakpoint bp;
+            if (!string.IsNullOrEmpty(warning))
+            {
+                Debug.Assert(string.IsNullOrEmpty(addr));
+                return new BindResult(new PendingBreakpoint(pbreak, number, MIBreakpointState.Pending), warning);
+            }
+            bp = new PendingBreakpoint(pbreak, number, StringToBreakpointState(addr));
             if (list == null)   // single breakpoint
             {
                 BoundBreakpoint bbp = bp.GetBoundBreakpoint(bkpt);

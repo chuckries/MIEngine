@@ -146,6 +146,16 @@ namespace Microsoft.MIDebugEngine
             }
         }
 
+        public void SetError(AD7ErrorBreakpoint bpError, bool sendEvent = false)
+        {
+            _BPError = bpError;
+
+            if (sendEvent)
+            {
+                _engine.Callback.OnBreakpointError(bpError);
+            }
+        }
+
         #region IDebugPendingBreakpoint2 Members
 
         // Binds this pending breakpoint to one or more code locations.
@@ -376,7 +386,7 @@ namespace Microsoft.MIDebugEngine
                     _boundBreakpoints[i].Delete();
                 }
                 _deleted = true;
-                if (_engine.DebuggedProcess.ProcessState != ProcessState.Stopped)
+                if (_engine.DebuggedProcess.ProcessState != ProcessState.Stopped && !_engine.DebuggedProcess.MICommandFactory.AllowCommandsWhileRunning())
                 {
                     _pendingDelete = true;
                 }

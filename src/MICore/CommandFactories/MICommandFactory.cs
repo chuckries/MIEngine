@@ -419,7 +419,7 @@ namespace MICore
         {
             StringBuilder cmd = BuildBreakInsert(condition);
 
-            if (checksums != null)
+            if (checksums != null && checksums.Count() != 0)
             {
                 cmd.Append(Checksum.GetMIString(checksums));
                 cmd.Append(" ");

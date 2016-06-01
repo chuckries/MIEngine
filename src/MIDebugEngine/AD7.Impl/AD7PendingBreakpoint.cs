@@ -276,14 +276,9 @@ namespace Microsoft.MIDebugEngine
                                     // Github issue: https://github.com/Microsoft/MIEngine/issues/350
                                     if (_engine.DebuggedProcess.MICommandFactory.SupportsBreakpointChecksums())
                                     {
-                                        // TODO: This will need to be configurable in the future somehow
-                                        // TODO: We might want the MICommandFactory to return the algorithm we should use
-                                        // TODO: But HashAlgorithmID is not part of MICore becuase it uses AD7Guids
-                                        HashAlgorithmId[] hashAlgorithmIds = { HashAlgorithmId.SHA1Normalized };
-
                                         try
                                         {
-                                            checksums = GetChecksums(hashAlgorithmIds);
+                                            checksums = GetSHA1Checksums();
                                         }
                                         catch (Exception)
                                         {
@@ -593,16 +588,18 @@ namespace Microsoft.MIDebugEngine
         /// Get the checksums associated with this pending breakpoint in order to verify the source file
         /// </summary>
         /// <param name="hashAlgorithmId">The HashAlgorithmId to use to calculate checksums</param>
+        /// <param name="checksums">Enumerable of the checksums obtained from the UI</param>
         /// <returns>
-        /// Checksums calculated using the given HashAlgorithmId against the source file represented in this pending breakpoint.
-        /// If no checksums can be calculated, returns null
+        /// S_OK on Success, Error Codes on failure
         /// </returns>
-        private IEnumerable<Checksum> GetChecksum(HashAlgorithmId hashAlgorithmId)
+        private int GetChecksum(HashAlgorithmId hashAlgorithmId, out IEnumerable<Checksum> checksums)
         {
+            checksums = Enumerable.Empty<Checksum>();
+
             IDebugBreakpointChecksumRequest2 checksumRequest = _pBPRequest as IDebugBreakpointChecksumRequest2;
             if (checksumRequest == null)
             {
-                return Enumerable.Empty<Checksum>();
+                return Constants.E_NOTIMPL;
             }
 
             int hr = Constants.S_OK;
@@ -611,7 +608,7 @@ namespace Microsoft.MIDebugEngine
             hr = checksumRequest.IsChecksumEnabled(out checksumEnabled);
             if (hr != Constants.S_OK || checksumEnabled == 0)
             {
-                return Enumerable.Empty<Checksum>();
+                return Constants.E_NOTIMPL;
             }
 
             Guid guidAlgorithm = hashAlgorithmId.AD7GuidHashAlgorithm;
@@ -621,7 +618,7 @@ namespace Microsoft.MIDebugEngine
             hr = checksumRequest.GetChecksum(ref guidAlgorithm, checksumDataArr);
             if (hr != Constants.S_OK)
             {
-                return Enumerable.Empty<Checksum>();
+                return hr;
             }
             CHECKSUM_DATA checksumData = checksumDataArr[0];
 
@@ -629,30 +626,47 @@ namespace Microsoft.MIDebugEngine
             uint countChecksums = checksumData.ByteCount / checksumSize;
             if (countChecksums == 0)
             {
-                return Enumerable.Empty<Checksum>();
+                return Constants.S_OK;
             }
 
             byte[] allChecksumBytes = new byte[checksumData.ByteCount];
             System.Runtime.InteropServices.Marshal.Copy(checksumData.pBytes, allChecksumBytes, 0, allChecksumBytes.Length);
             System.Runtime.InteropServices.Marshal.FreeCoTaskMem(checksumData.pBytes);
 
-            Checksum[] checksums = new Checksum[countChecksums];
+            Checksum[] checksumArray = new Checksum[countChecksums];
             for (uint i = 0; i < countChecksums; i++)
             {
-                checksums[i] = Checksum.FromBytes(hashAlgorithmId.MIHashAlgorithmName, allChecksumBytes.Skip((int)(i * checksumSize)).Take((int)checksumSize).ToArray());
+                checksumArray[i] = Checksum.FromBytes(hashAlgorithmId.MIHashAlgorithmName, allChecksumBytes.Skip((int)(i * checksumSize)).Take((int)checksumSize).ToArray());
+            }
+
+            checksums = checksumArray;
+
+            return Constants.S_OK;
+        }
+
+        /// <summary>
+        /// Get the SHA1Nomralized Checksums for the document associated with the breakpoint request.
+        /// If the normalized guid is not recognized by the UI, it will attempt to obtain just the SHA1 checksum
+        /// </summary>
+        /// <returns>One or more checksums on succes, empty enumerable on any failures</returns>
+        private IEnumerable<Checksum> GetSHA1Checksums()
+        {
+            IEnumerable<Checksum> checksums = Enumerable.Empty<Checksum>();
+            int hr = GetChecksum(HashAlgorithmId.SHA1Normalized, out checksums);
+
+            // VS IDE does not understand the normalized guids and will return E_FAIL for normalized
+            // Try to get a checksum for SHA1
+            if (hr == Constants.E_FAIL)
+            {
+                hr = GetChecksum(HashAlgorithmId.SHA1, out checksums);
+            }
+
+            if (hr != Constants.S_OK)
+            {
+                return Enumerable.Empty<Checksum>();
             }
 
             return checksums;
-        }
-
-        private IEnumerable<Checksum> GetChecksums(IEnumerable<HashAlgorithmId> hashAlgorithmIds)
-        {
-            var checksumsList = new List<Checksum>();
-            foreach (HashAlgorithmId algorithm in hashAlgorithmIds)
-            {
-                checksumsList.AddRange(GetChecksum(algorithm));
-            }
-            return checksumsList;
         }
     }
 

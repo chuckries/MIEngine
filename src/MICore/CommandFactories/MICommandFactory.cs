@@ -419,13 +419,11 @@ namespace MICore
         {
             StringBuilder cmd = BuildBreakInsert(condition);
 
-#if CORECLR
             if (checksums != null)
             {
                 cmd.Append(Checksum.GetMIString(checksums));
                 cmd.Append(" ");
             }
-#endif
 
             cmd.Append(filename);
             cmd.Append(":");

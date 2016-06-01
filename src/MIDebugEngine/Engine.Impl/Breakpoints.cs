@@ -105,32 +105,12 @@ namespace Microsoft.MIDebugEngine
             return EvalBindWatchResult(await process.MICommandFactory.BreakWatch(address, size, ResultClass.None), pbreak, address, size);
         }
 
-        internal static async Task<BindResult> Bind(string documentName, uint line, uint column, DebuggedProcess process, string condition, AD7PendingBreakpoint pbreak)
+        internal static async Task<BindResult> Bind(string documentName, uint line, uint column, DebuggedProcess process, string condition, IEnumerable<Checksum> checksums, AD7PendingBreakpoint pbreak)
         {
             process.VerifyNotDebuggingCoreDump();
 
             string basename = System.IO.Path.GetFileName(documentName);     // get basename from Windows path
             basename = process.EscapePath(basename);
-
-            Checksum[] checksums = null;
-#if CORECLR
-            if (process.MICommandFactory.SupportsBreakpointChecksums())
-            {
-                // TODO: This will need to be configurable in the future somehow
-                // TODO: We might want the MICommandFactory to return the algorithm we should use
-                // TODO: But HashAlgorithmID is not part of MICore becuase it uses AD7Guids
-                HashAlgorithmId[] hashAlgorithmIds = { HashAlgorithmId.SHA1Normalized };
-
-                try
-                {
-                    checksums = pbreak.GetChecksums(hashAlgorithmIds);
-                }
-                catch (Exception)
-                {
-                    // If we fail to get a checksum there's nothing else we can do
-                }
-            }
-#endif
 
             BindResult bindResults = EvalBindResult(await process.MICommandFactory.BreakInsert(basename, line, condition, checksums, ResultClass.None), pbreak);
 

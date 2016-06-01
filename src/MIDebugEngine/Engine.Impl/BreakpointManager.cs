@@ -79,7 +79,7 @@ namespace Microsoft.MIDebugEngine
             }
 
             string warning = bkpt.TryFindString("warning");
-            if (!string.IsNullOrEmpty("warning"))
+            if (!string.IsNullOrEmpty(warning))
             {
                 pending.SetError(new AD7ErrorBreakpoint(pending, warning), true);
             }
